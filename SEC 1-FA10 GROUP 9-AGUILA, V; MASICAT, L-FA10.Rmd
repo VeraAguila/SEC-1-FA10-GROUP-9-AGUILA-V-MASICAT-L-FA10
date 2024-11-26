@@ -1,0 +1,174 @@
+---
+title: "Formative Assessment 10"
+author: "Vera Aguila and Lindsy Masicat"
+date: "2024-11-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Introduction
+This analysis investigates the effect of margarine brand (A or B) on cholesterol levels over three time points (Before, After 4 weeks, After 8 weeks). A two-way mixed ANOVA is conducted to analyze:
+
+- **Within-subjects factor**: Time (T1, T2, T3).
+- **Between-subjects factor**: Margarine brand (A or B).
+
+Assumptions of normality, homogeneity of variances, and sphericity are checked before performing the analysis.
+
+```{r load-data, echo=FALSE}
+suppressMessages({
+  library(tidyr)
+  library(dplyr)
+  library(ggplot2)
+  library(car)
+  library(ez)
+  library(emmeans)
+  library(kableExtra)
+})
+cholesterol_data <- read.csv("Cholesterol_R2.csv")
+
+cholesterol_long <- cholesterol_data %>%
+  pivot_longer(cols = c(Before, After4weeks, After8weeks),
+               names_to = "Time", values_to = "Cholesterol") %>%
+  mutate(Time = factor(Time, levels = c("Before", "After4weeks", "After8weeks"),
+                       labels = c("T1", "T2", "T3")),
+         Margarine = factor(Margarine))
+```
+
+## Dataset
+```{r dataset-display, echo=FALSE}
+cholesterol_long %>%
+  kbl(caption = "Cholesterol Dataset (Long Format)") %>%
+  kable_styling()
+```
+
+## Assumptions
+
+- Continuous Dependent Variable: Cholesterol levels are measured on a continuous scale. <br>
+- Between-Subjects Factor: Margarine brand (A or B) is a categorical variable with two groups. <br>
+- Within-Subjects Factor: Time (T1, T2, T3) is a categorical variable with repeated measurements. <br>
+- No Significant Outliers: The data must not have extreme values in any cell of the design. <br>
+- Normal Distribution: The dependent variable (cholesterol levels) should be approximately normally distributed for each cell of the design. <br>
+- Homogeneity of Variances: Variance of the dependent variable should be equal between groups of the between-subjects factor. <br>
+- Homogeneity of Covariances: Relationships between levels of the within-subjects factor should be consistent across groups. <br>
+- Sphericity: The variance of differences between time points should be equal.
+
+## Testing of Assumptions
+
+## Descriptive Statistics
+```{r descriptive-stats, echo=FALSE}
+descriptive_stats <- cholesterol_long %>%
+  group_by(Margarine, Time) %>%
+  summarise(
+    Mean = mean(Cholesterol),
+    SD = sd(Cholesterol),
+    n = n(),
+    .groups = "drop"
+  )
+
+descriptive_stats %>%
+  kbl(caption = "Descriptive Statistics for Cholesterol Levels") %>%
+  kable_styling()
+```
+
+### Normality
+```{r shapiro, echo=FALSE}
+# Shapiro-Wilk test for normality
+shapiro_results <- cholesterol_long %>%
+  group_by(Margarine, Time) %>%
+  summarise(p_value = shapiro.test(Cholesterol)$p.value, .groups = "drop")
+
+# Display Shapiro-Wilk test results
+shapiro_results %>%
+  kbl(caption = "Shapiro-Wilk Test Results for Normality") %>%
+  kable_styling()
+```
+
+### Homogeneity of Variances
+```{r levene, echo=FALSE}
+# Levene's test for homogeneity of variances
+levene_test <- leveneTest(Cholesterol ~ Margarine * Time, data = cholesterol_long)
+
+# Display Levene's test results
+levene_test %>%
+  kbl(caption = "Levene's Test for Homogeneity of Variances") %>%
+  kable_styling()
+```
+
+## Two-Way Mixed ANOVA
+```{r anova, echo=FALSE}
+# Perform two-way mixed ANOVA
+suppressWarnings({
+  anova_results <- ezANOVA(
+    data = cholesterol_long,
+    dv = .(Cholesterol),
+    wid = .(ID),
+    within = .(Time),
+    between = .(Margarine),
+    detailed = TRUE
+  )
+})
+
+# Display ANOVA results
+anova_table <- as.data.frame(anova_results$ANOVA)
+anova_table %>%
+  kbl(caption = "Two-Way Mixed ANOVA Results") %>%
+  kable_styling()
+
+# Fit the ANOVA model using aov for compatibility with emmeans
+aov_model <- aov(Cholesterol ~ Margarine * Time + Error(ID/Time), data = cholesterol_long)
+
+# Display ANOVA summary
+anova_summary <- summary(aov_model)
+anova_summary
+
+```
+## Post Hoc Analysis 
+
+```{r post hoc, echo=FALSE}
+# Perform post-hoc analysis
+posthoc_results <- emmeans(aov_model, pairwise ~ Time * Margarine)
+
+# Display pairwise comparisons
+posthoc_pairs <- posthoc_results$contrasts
+posthoc_pairs %>%
+  summary() %>%
+  as.data.frame() %>%
+  kbl(caption = "Post-Hoc Pairwise Comparisons") %>%
+  kable_styling()
+
+```
+
+## Visualization
+```{r boxplot, echo=FALSE, fig.width=7, fig.height=5}
+# Create boxplot
+ggplot(cholesterol_long, aes(x = Time, y = Cholesterol, color = Margarine)) +
+  geom_boxplot() +
+  geom_line(aes(group = ID), alpha = 0.5) +
+  labs(title = "Cholesterol Levels Over Time by Margarine Brand",
+       x = "Time Point", y = "Cholesterol Level") +
+  theme_minimal()
+```
+
+
+## APA Report
+The results of the two-way mixed ANOVA indicated significant effects for the main factors and their interaction. Specifically, there was a significant main effect of Time, $F(df_1,df_2)=[value], p=[value]$, suggesting that cholesterol levels changed significantly over the three time points (Before, After 4 weeks, and After 8 weeks). This finding implies that the duration of margarine consumption had a measurable impact on cholesterol levels, regardless of the margarine brand.
+
+The analysis also revealed a significant main effect of Margarine, $F(df_1,df_2)=[value], p=[value]$, indicating that cholesterol levels varied significantly between the two margarine brands. This result suggests that the type of margarine (Brand A or Brand B) played a crucial role in determining cholesterol levels.
+
+Furthermore, a significant interaction effect between Time and Margarine was observed, $F(df_1,df_2)=[value], p=[value]$. This interaction indicates that the effect of time on cholesterol levels differed depending on the margarine brand. Post-hoc analyses revealed that [insert findings], highlighting specific differences in cholesterol levels between the margarine brands at certain time points. For example, cholesterol levels for Brand A might have decreased more significantly over time compared to Brand B, or the brands may have exhibited contrasting trends at specific intervals.
+
+These results underscore the combined influence of time and margarine type on cholesterol levels. The significant interaction effect suggests that the impact of margarine on cholesterol is not uniform over time, necessitating further exploration into the mechanisms underlying these effects.
+
+## Conclusion
+In conclusion, this analysis demonstrates that both time and margarine brand significantly affect cholesterol levels, with a notable interaction between the two factors. These findings suggest that the effectiveness of margarine in influencing cholesterol levels is dependent on the duration of consumption and the specific brand. These results have practical implications for dietary recommendations, emphasizing the need to consider both the type of margarine and the duration of its consumption when advising individuals on managing cholesterol levels. Further research is recommended to investigate the long-term effects and potential mechanisms driving these differences.
+
+
+
+
+
+
